@@ -2,63 +2,64 @@
 # coding: utf-8
 
 import pandas as pd
-import datetime, time, json, requests, tweepy
-from config import client_id
+import datetime, time, json, requests
+#from config import client_id
 from os import listdir
+import yfinance as yf
 
-
-with open('token.txt', 'r') as json_file:
-    token_data = json.load(json_file)
-
-# Load refresh token
-refresh_token = token_data['refresh_token']
-
-
-# define the endpoint
-url = r'https://api.tdameritrade.com/v1/oauth2/token'
-
-#define the headers
-headers ={'Content-Type':"application/x-www-form-urlencoded"}
-
-#define the payload
-payload = {'grant_type':'refresh_token',
-           'refresh_token':refresh_token,
-           'client_id': client_id,
-           'redirect_uri':'http://127.0.0.1'}
-
-#post the data to get the token
-
-authReply = requests.post(url, headers = headers, data = payload)
-
-# convert token data (json string) to dictionary
-
-decoded_content = authReply.json()
-
-# Access Token
-access_token = decoded_content['access_token']
-
-# Access Token expiration is 30 mins (1800 seconds)
-access_token_expiration = decoded_content['expires_in']
-
-# Use the access token expiration to calculate the time it expires (local)
-access_token_renewal_date = datetime.datetime.fromtimestamp(time.time() + access_token_expiration)
-
-# Saves access token to be used by other programs within the 30 mins expiration timeframe
-with open('access.txt', 'w') as file:
-    json.dump(decoded_content, file, default=str)
-
-headers['Authorization'] = 'Bearer '+str(decoded_content['access_token'])
-
-
-def get_quotes(**kwargs):
-    url = 'https://api.tdameritrade.com/v1/marketdata/quotes'
-
-    arguments = {'apikey': client_id}
-
-    symbol_list = [symbol for symbol in kwargs.get('symbol')]
-    arguments.update({'symbol': symbol_list})
-
-    return requests.get(url, headers=headers, params=arguments).json()
+# Function to fetch stock quote details
+def get_quote_details(ticker):
+    print("working on " + ticker)
+    stock = yf.Ticker(ticker)
+    quote = stock.info
+    
+    if quote is None:
+        print("No data available for the given ticker symbol.")
+        return
+    
+    quote_details = {
+        "symbol": quote.get("symbol", ""),
+        "description": quote.get("longName", ""),
+        "bidPrice": quote.get("bid", 0),
+        "bidSize": quote.get("bidSize", 0),
+        "bidId": quote.get("bidId", ""),
+        "askPrice": quote.get("ask", 0),
+        "askSize": quote.get("askSize", 0),
+        "askId": quote.get("askId", ""),
+        "lastPrice": quote.get("regularMarketPrice", 0),
+        "lastSize": quote.get("regularMarketVolume", 0),
+        "lastId": quote.get("regularMarketTime", ""),
+        "openPrice": quote.get("regularMarketOpen", 0),
+        "highPrice": quote.get("regularMarketDayHigh", 0),
+        "lowPrice": quote.get("regularMarketDayLow", 0),
+        "closePrice": quote.get("regularMarketPreviousClose", 0),
+        "netChange": quote.get("regularMarketChange", 0),
+        "totalVolume": quote.get("regularMarketVolume", 0),
+        "quoteTimeInLong": quote.get("quoteTime", 0),
+        "tradeTimeInLong": quote.get("regularMarketTime", 0),
+        "mark": quote.get("mark", 0),
+        "exchange": quote.get("exchange", ""),
+        "exchangeName": quote.get("exchangeName", ""),
+        "marginable": quote.get("marginable", False),
+        "shortable": quote.get("shortable", False),
+        "volatility": quote.get("volatility", 0),
+        "digits": quote.get("regularMarketPrice", 0),
+        "52WkHigh": quote.get("fiftyTwoWeekHigh", 0),
+        "52WkLow": quote.get("fiftyTwoWeekLow", 0),
+        "peRatio": quote.get("trailingPE", 0),
+        "divAmount": quote.get("dividendRate", 0),
+        "divYield": quote.get("dividendYield", 0),
+        "divDate": quote.get("exDividendDate", ""),
+        "securityStatus": quote.get("quoteType", ""),
+        "regularMarketLastPrice": quote.get("regularMarketPrice", 0),
+        "regularMarketLastSize": quote.get("regularMarketVolume", 0),
+        "regularMarketNetChange": quote.get("regularMarketChange", 0),
+        "regularMarketTradeTimeInLong": quote.get("regularMarketTime", 0)
+        # Fill in the details here
+    }
+    
+    #return json.dumps(quote_details)
+    return quote_details
 
 
 # Read stocks to update from file
@@ -75,10 +76,12 @@ def chunks(seq, size):
 # Create Close Date Dict
 close_data = {}
 
-for chunk in chunks(stocks, 15):
-    data = get_quotes(symbol=chunk)
-    close_data.update(data)
+for chunk in chunks(stocks, 10):
+    for ticker in chunk:
+        data = get_quote_details(ticker)
+        close_data[ticker] = data
 
+print(json.dumps(close_data, indent=4))
 
 df = pd.DataFrame.from_dict(close_data, orient='index', columns=['symbol', 'openPrice', 'closePrice', '52WkHigh', 'totalVolume'])
 df.to_csv('open_prices.csv', index=False)
@@ -121,7 +124,7 @@ def twitter_auth():
 	return tweepy.API(auth)
 
 
-twitter = twitter_auth()
+#twitter = twitter_auth()
 
 
 content = []
@@ -139,8 +142,8 @@ for t in df[['symbol', 'Pct Change']].values:
             content.clear()
             char_count = 0
             content.append("Stock gaps:\n")
-twitter.update_status("".join(content))
-# print("".join(content))
+# twitter.update_status("".join(content))
+print("".join(content))
 
 
 # Breakout alerts
@@ -161,10 +164,10 @@ for t in df[['symbol', 'openPrice', '20 Day High', '50 Day High', '100 Day High'
         char_count += len(line)
         content.append(line)
         if char_count > 242:
-            twitter.update_status("".join(content))
-            # print("".join(content))
+            # twitter.update_status("".join(content))
+            print("".join(content))
             content.clear()
             char_count = 0
 if content:
-    twitter.update_status("".join(content))
-    # print("".join(content))
+    # twitter.update_status("".join(content))
+    print("".join(content))
