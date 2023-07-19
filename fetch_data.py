@@ -1,19 +1,6 @@
 import requests, csv, datetime
-from config import client_id
-
-# This is your api key
-key = client_id
-
-
-def get_quotes(**kwargs):
-    url = 'https://api.tdameritrade.com/v1/marketdata/quotes'
-
-    arguments = {'apikey': key}
-
-    symbol_list = [symbol for symbol in kwargs.get('symbol')]
-    arguments.update({'symbol': symbol_list})
-
-    return requests.get(url, params=arguments).json()
+import yfinance as yf
+import json
 
 
 # The following tickers (keys) can only be found on the TD Ameritrade API under the respective (values).
@@ -27,18 +14,72 @@ with open('stocks.txt', newline='') as f:
         if ticker in replacements:
             stocks[stocks.index(ticker)] = replacements[ticker]
 
-
 # Break into chunks as to not call the function with too many symbols
 def chunks(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
+# Function to fetch stock quote details
+def get_quote_details(ticker):
+    print("working on " + ticker)
+    stock = yf.Ticker(ticker)
+    quote = stock.info
+    
+    if quote is None:
+        print("No data available for the given ticker symbol.")
+        return
+    
+    quote_details = {
+        "symbol": quote.get("symbol", ""),
+        "description": quote.get("longName", ""),
+        "bidPrice": quote.get("bid", 0),
+        "bidSize": quote.get("bidSize", 0),
+        "bidId": quote.get("bidId", ""),
+        "askPrice": quote.get("ask", 0),
+        "askSize": quote.get("askSize", 0),
+        "askId": quote.get("askId", ""),
+        "lastPrice": quote.get("regularMarketPrice", 0),
+        "lastSize": quote.get("regularMarketVolume", 0),
+        "lastId": quote.get("regularMarketTime", ""),
+        "openPrice": quote.get("regularMarketOpen", 0),
+        "highPrice": quote.get("regularMarketDayHigh", 0),
+        "lowPrice": quote.get("regularMarketDayLow", 0),
+        "closePrice": quote.get("regularMarketPreviousClose", 0),
+        "netChange": quote.get("regularMarketChange", 0),
+        "totalVolume": quote.get("regularMarketVolume", 0),
+        "quoteTimeInLong": quote.get("quoteTime", 0),
+        "tradeTimeInLong": quote.get("regularMarketTime", 0),
+        "mark": quote.get("mark", 0),
+        "exchange": quote.get("exchange", ""),
+        "exchangeName": quote.get("exchangeName", ""),
+        "marginable": quote.get("marginable", False),
+        "shortable": quote.get("shortable", False),
+        "volatility": quote.get("volatility", 0),
+        "digits": quote.get("regularMarketPrice", 0),
+        "52WkHigh": quote.get("fiftyTwoWeekHigh", 0),
+        "52WkLow": quote.get("fiftyTwoWeekLow", 0),
+        "peRatio": quote.get("trailingPE", 0),
+        "divAmount": quote.get("dividendRate", 0),
+        "divYield": quote.get("dividendYield", 0),
+        "divDate": quote.get("exDividendDate", ""),
+        "securityStatus": quote.get("quoteType", ""),
+        "regularMarketLastPrice": quote.get("regularMarketPrice", 0),
+        "regularMarketLastSize": quote.get("regularMarketVolume", 0),
+        "regularMarketNetChange": quote.get("regularMarketChange", 0),
+        "regularMarketTradeTimeInLong": quote.get("regularMarketTime", 0)
+    }
+    
+    #return json.dumps(quote_details)
+    return quote_details
 
 # Create Close Date Dict
 close_data = {}
 
 for chunk in chunks(stocks, 10):
-    data = get_quotes(symbol=chunk)
-    close_data.update(data)
+    for ticker in chunk:
+        data = get_quote_details(ticker)
+        close_data[ticker] = data
+
+#print(json.dumps(close_data, indent=4))
 
 today = datetime.date.today().strftime('%Y-%m-%d')
 
